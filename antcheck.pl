@@ -25,8 +25,9 @@ use threads;
 use threads::shared;
 use Readonly;
 use Getopt::Long;
-use ANTCHECK::Timer;
-use ANTCHECK::AntScreen;
+use Timer;
+use AntScreen;
+use Meson;
 
 our $VERSION = 2.0;
 
@@ -36,6 +37,13 @@ my $threads = 2;
 my $timer;
 my $rc;
 my $screen;
+my $meson;
+my @pids_one;
+my @pids_two;
+my $thread1;
+my $thread2;
+my $pid_count;
+my $mutex : shared;
 
 $timer = Timer->new();
 $timer->start();
@@ -45,11 +53,43 @@ GetOptions( 'threads=i' => \$threads, 'set' => \$sets, 'tries' => \$tries );
 ( $tries == 1 ) && ( die "--tries not yet implemented\n" );
 ( $threads != 1 ) && ( $threads != 2 ) && ( die "--threads must be 1 or 2\n" );
 
-$screen = AntScreen->new();
-$screen->close();
+$screen    = AntScreen->new($threads);
+$meson     = Meson->new();
+$pid_count = $meson->get_pids( $threads, \@pids_one, \@pids_two );
+$screen->update_prepared($pid_count);
+
+$thread1 = threads->new( \&find_matches, 1, \@pids_one );
+
+if ( $threads == 2 ) {
+    $thread2 = threads->new( \&find_matches, 2, \@pids_two );
+}
+
+$thread1->join();
+
+if ( $threads == 2 ) {
+    $thread2->join();
+}
+
+$meson->close_db();
+$screen->close_screen();
 
 $timer->end();
 $rc = printf "antcheck.pl finished (sets = %d, tries = %d, threads = %d)\n", $sets, $tries, $threads;
 $rc = printf "Time taken = %0.5f seconds\n", $timer->get_elapsed_time();
 
 exit 0;
+
+sub find_matches {
+    my ( $thr, $r_pids ) = @_;
+    my $checked = 0;
+
+    foreach my $pid ( @{$r_pids} ) {
+        $checked++;
+        {
+            lock $mutex;
+            $screen->update_checked( $thr, $checked );
+        }
+    }
+
+    return;
+}

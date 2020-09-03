@@ -33,7 +33,7 @@ Readonly::Scalar my $INSET       => 25;
 Readonly::Scalar my $PAUSE_LINE  => 10;
 
 sub new {
-    my $class  = shift;
+    my ( $class, $threads ) = @_;
     my $r_self = {};
     my $header = sprintf '%s (v. %s) - %s', $PROG_NAME, $VERSION, $COPY_RIGHT;
 
@@ -44,12 +44,15 @@ sub new {
     addstr('           #2s prepared:');
     move( $CHECK_LINE1, $L_MARGIN );
     addstr(' #2s checked (Thread 1):');
-    move( $CHECK_LINE2, $L_MARGIN );
-    addstr(' #2s checked (Thread 2):');
     move( $HIT_LINE1, $L_MARGIN );
     addstr('        Hits (Thread 1):');
-    move( $HIT_LINE2, $L_MARGIN );
-    addstr('        Hits (Thread 2):');
+
+    if ( $threads == 2 ) {
+        move( $CHECK_LINE2, $L_MARGIN );
+        addstr(' #2s checked (Thread 2):');
+        move( $HIT_LINE2, $L_MARGIN );
+        addstr('        Hits (Thread 2):');
+    }
 
     refresh;
 
@@ -58,8 +61,8 @@ sub new {
 }
 
 sub update_prepared {
-    my $in = shift;
-    my $number = sprintf '%5d', $in;
+    my ( $r_self, $in ) = @_;
+    my $number = sprintf '%6d', $in;
 
     move( $PREP_LINE, $INSET );
     addstr($number);
@@ -68,28 +71,33 @@ sub update_prepared {
     return;
 }
 
-sub update {
-    my ( $thr, $type, $in ) = @_;
-    my $number = sprintf '%5d', $in;
-    my $l;
+sub update_checked {
+    my ( $r_self, $thread, $in ) = @_;
+    my $number = sprintf '%6d', $in;
 
-    if ( $type == 0 ) {
-        $l = ( $thr == 1 ) ? 3 : 4;
-    }
-    else {
-        $l = ( $thr == 1 ) ? 5 : 6;
-    }
-
-    move( $l, 25 );
+    my $line = ( $thread == 1 ) ? $CHECK_LINE1 : $CHECK_LINE2;
+    move( $line, $INSET );
     addstr($number);
     refresh;
 
     return;
 }
 
-sub close {
+sub update_hits {
+    my ( $r_self, $thread, $in ) = @_;
+    my $number = sprintf '%6d', $in;
 
-    getch();
+    my $line = ( $thread == 1 ) ? $HIT_LINE1 : $HIT_LINE2;
+    move( $line, $INSET );
+    addstr($number);
+    refresh;
+
+    return;
+}
+
+sub close_screen {
+
+    #getch();
     endwin;
 
     return;
