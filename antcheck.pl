@@ -28,6 +28,7 @@ use Getopt::Long;
 use Timer;
 use AntScreen;
 use Meson;
+use Problem;
 
 our $VERSION = 2.0;
 
@@ -53,9 +54,12 @@ GetOptions( 'threads=i' => \$threads, 'set' => \$sets, 'tries' => \$tries );
 ( $tries == 1 ) && ( die "--tries not yet implemented\n" );
 ( $threads != 1 ) && ( $threads != 2 ) && ( die "--threads must be 1 or 2\n" );
 
-$screen    = AntScreen->new($threads);
-$meson     = Meson->new();
+$screen = AntScreen->new($threads);
+$meson  = Meson->new();
+$meson->truncate_antcheck();
 $pid_count = $meson->get_pids( $threads, \@pids_one, \@pids_two );
+$meson->close_db();
+
 $screen->update_prepared($pid_count);
 
 $thread1 = threads->new( \&find_matches, 1, \@pids_one );
@@ -70,7 +74,6 @@ if ( $threads == 2 ) {
     $thread2->join();
 }
 
-$meson->close_db();
 $screen->close_screen();
 
 $timer->end();
@@ -82,14 +85,37 @@ exit 0;
 sub find_matches {
     my ( $thr, $r_pids ) = @_;
     my $checked = 0;
+    my $hits    = 0;
+    my $dbase   = Meson->new();
+    my $pid;
 
-    foreach my $pid ( @{$r_pids} ) {
+    $pid = pop @{$r_pids};
+
+    while ( defined $pid ) {
+        my $prb = Problem->new( $dbase, $pid );
+        $prb->process();
+        my $found = $prb->get_hit_count();
+
+        if ( $found > 0 ) {
+            $hits++;
+
+            {
+                lock $mutex;
+                $screen->update_hits( $thr, $hits );
+            }
+        }
+
         $checked++;
+
         {
             lock $mutex;
             $screen->update_checked( $thr, $checked );
         }
+        
+        $pid = pop @{$r_pids};
     }
+
+    $dbase->close_db();
 
     return;
 }

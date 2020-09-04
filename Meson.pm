@@ -9,11 +9,29 @@ use strict;
 use Readonly;
 use DBI;
 
-Readonly::Scalar my $SERVER      => 'localhost';
-Readonly::Scalar my $DB          => 'meson';
-Readonly::Scalar my $USER        => 'bstephen';
-Readonly::Scalar my $PASSWORD    => 'rice37';
-Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
+Readonly::Scalar my $SERVER           => 'localhost';
+Readonly::Scalar my $DB               => 'meson';
+Readonly::Scalar my $USER             => 'bstephen';
+Readonly::Scalar my $PASSWORD         => 'rice37';
+Readonly::Scalar my $GET_FEATS_SQL    => 'SELECT UNCOMPRESS(class) FROM classol WHERE pid = %d';
+Readonly::Scalar my $GET_FEAT_FID_SQL => 'SELECT fid FROM meson_feature WHERE text = \'%s\'';
+
+#Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
+
+Readonly::Scalar my $GET_PID_SQL =>
+  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
+Readonly::Scalar my $TRUNCATE_SQL => 'TRUNCATE TABLE antcheck';
+
+my @not_sql = (
+    'SELECT caid FROM cants WHERE pid = %d',
+    'SELECT cabid FROM cabs WHERE pid = %d',
+    'SELECT said FROM sants WHERE pid = %d',
+    'SELECT sabid FROM sabs WHERE pid = %d',
+
+    #    'SELECT aid FROM nots WHERE pid = %d',
+    'SELECT aid FROM afters WHERE pid = %d',
+    'SELECT aid FROM versions WHERE pid = %d',
+);
 
 our $VERSION = 2.0;
 
@@ -37,6 +55,17 @@ sub new {
 
     bless $r_self, $class;
     return $r_self;
+}
+
+sub truncate_antcheck {
+    my $r_self = shift;
+    my $sth;
+
+    $sth = $r_self->{DBH}->prepare($TRUNCATE_SQL);
+    $sth->execute();
+    $sth->finish();
+
+    return;
 }
 
 sub get_pids {
@@ -68,6 +97,58 @@ sub get_pids {
     $sth->finish();
 
     return $count;
+}
+
+sub get_nots {
+    my ( $r_self, $r_array, $pid ) = @_;
+    my $r_row;
+    my $sth;
+
+    foreach my $notsql (@not_sql) {
+        my $sql = sprintf $notsql, $pid;
+        $sth = $r_self->{DBH}->prepare($sql);
+        $sth->execute();
+
+        while ( $r_row = $sth->fetchrow_arrayref ) {
+            push @{$r_array}, $r_row->[0];
+        }
+
+        $sth->finish();
+    }
+
+    return;
+}
+
+sub get_features {
+    my ( $r_self, $pid ) = @_;
+    my $r_row;
+    my $sth;
+    my $rc;
+
+    my $sql = sprintf $GET_FEATS_SQL, $pid;
+    $sth = $r_self->{DBH}->prepare($sql);
+    $sth->execute();
+    $r_row = $sth->fetchrow_arrayref;
+    $rc    = $r_row->[0];
+    $sth->finish();
+
+    return $rc;
+}
+
+sub get_potential_pids {
+    my ( $r_self, $patt, $nots, $r_array ) = @_;
+    my $r_row;
+    my $sth;
+    my $fid;
+
+    my $sql = sprintf $GET_FEAT_FID_SQL, $patt;
+    $sth = $r_self->{DBH}->prepare($sql);
+    $sth->execute();
+    $r_row = $sth->fetchrow_arrayref;
+    $fid   = $r_row->[0];
+    $sth->finish();
+
+    return;
 }
 
 sub close_db {
