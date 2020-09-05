@@ -15,11 +15,14 @@ Readonly::Scalar my $USER             => 'bstephen';
 Readonly::Scalar my $PASSWORD         => 'rice37';
 Readonly::Scalar my $GET_FEATS_SQL    => 'SELECT UNCOMPRESS(class) FROM classol WHERE pid = %d';
 Readonly::Scalar my $GET_FEAT_FID_SQL => 'SELECT fid FROM meson_feature WHERE text = \'%s\'';
+Readonly::Scalar my $GET_PIDS_WITH_FID =>
+  'SELECT pid from meson_keyclass WHERE (fid = %d) AND (pid NOT IN %s )';
+Readonly::Scalar my $INSERT_HIT => 'INSERT INTO antcheck SET pid = %d, aid = %d, score = %f';
 
-#Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
+Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
 
-Readonly::Scalar my $GET_PID_SQL =>
-  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
+#Readonly::Scalar my $GET_PID_SQL =>
+#  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
 Readonly::Scalar my $TRUNCATE_SQL => 'TRUNCATE TABLE antcheck';
 
 my @not_sql = (
@@ -27,8 +30,7 @@ my @not_sql = (
     'SELECT cabid FROM cabs WHERE pid = %d',
     'SELECT said FROM sants WHERE pid = %d',
     'SELECT sabid FROM sabs WHERE pid = %d',
-
-    #    'SELECT aid FROM nots WHERE pid = %d',
+    'SELECT aid FROM nots WHERE pid = %d',
     'SELECT aid FROM afters WHERE pid = %d',
     'SELECT aid FROM versions WHERE pid = %d',
 );
@@ -55,6 +57,18 @@ sub new {
 
     bless $r_self, $class;
     return $r_self;
+}
+
+sub insert_hit {
+    my ( $r_self, $pid, $aid, $score ) = @_;
+    my $sth;
+    my $sql = sprintf $INSERT_HIT, $pid, $aid, $score;
+
+    $sth = $r_self->{DBH}->prepare($sql);
+    $sth->execute();
+    $sth->finish();
+
+    return;
 }
 
 sub truncate_antcheck {
@@ -146,6 +160,16 @@ sub get_potential_pids {
     $sth->execute();
     $r_row = $sth->fetchrow_arrayref;
     $fid   = $r_row->[0];
+    $sth->finish();
+
+    $sql = sprintf $GET_PIDS_WITH_FID, $fid, $nots;
+    $sth = $r_self->{DBH}->prepare($sql);
+    $sth->execute();
+
+    while ( $r_row = $sth->fetchrow_arrayref ) {
+        push @{$r_array}, $r_row->[0];
+    }
+
     $sth->finish();
 
     return;

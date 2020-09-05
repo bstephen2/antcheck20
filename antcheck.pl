@@ -97,6 +97,7 @@ sub find_matches {
         my $found = $prb->get_hit_count();
 
         if ( $found > 0 ) {
+        
             $hits++;
 
             {

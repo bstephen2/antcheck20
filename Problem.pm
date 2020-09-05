@@ -9,7 +9,8 @@ use strict;
 use XML::LibXML;
 use Readonly;
 
-Readonly::Scalar my $RUBICON => 80.00;
+Readonly::Scalar my $RUBICON => 95.00;
+Readonly::Scalar my $HUNDRED => 100.00;
 
 our $VERSION = 2.0;
 
@@ -22,7 +23,7 @@ sub new {
     $r_self->{NOTS}      = [];
     $r_self->{ACTPATTS}  = [];
     $r_self->{NOTSTEXT}  = undef;
-    $r_self->{HITS}      = undef;
+    $r_self->{HITS}      = [];
     $r_self->{FEATS}     = undef;
     $r_self->{HIT_COUNT} = 0;
 
@@ -49,8 +50,10 @@ sub process {
 sub get_potential_hits {
     my $r_self = shift;
     my %other_pids;
-    my $r_array = $r_self->{ACTPATTS};
-    my $nots    = $r_self->{NOTSTEXT};
+    my $r_array     = $r_self->{ACTPATTS};
+    my $nots        = $r_self->{NOTSTEXT};
+    my $r_hits      = $r_self->{HITS};
+    my $total_patts = scalar @{$r_array};
 
     for my $patt ( @{$r_array} ) {
         my $r_pids = [];
@@ -64,6 +67,16 @@ sub get_potential_hits {
             else {
                 $other_pids{$pid} = 1;
             }
+        }
+    }
+
+    while ( ( my $key, my $value ) = each %other_pids ) {
+        my $pc = ( $value * $HUNDRED ) / $total_patts;
+
+        if ( $pc > $RUBICON ) {
+            push @{$r_hits}, $key;
+            $r_self->{DBASE}->insert_hit( $r_self->{PID}, $key, $pc );
+            ( $r_self->{HIT_COUNT} )++;
         }
     }
 
