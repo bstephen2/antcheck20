@@ -97,7 +97,7 @@ sub find_matches {
         my $found = $prb->get_hit_count();
 
         if ( $found > 0 ) {
-        
+
             $hits++;
 
             {
@@ -112,7 +112,7 @@ sub find_matches {
             lock $mutex;
             $screen->update_checked( $thr, $checked );
         }
-        
+
         $pid = pop @{$r_pids};
     }
 

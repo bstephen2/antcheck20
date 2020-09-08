@@ -19,10 +19,10 @@ Readonly::Scalar my $GET_PIDS_WITH_FID =>
   'SELECT pid from meson_keyclass WHERE (fid = %d) AND (pid NOT IN %s )';
 Readonly::Scalar my $INSERT_HIT => 'INSERT INTO antcheck SET pid = %d, aid = %d, score = %f';
 
-Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
+#Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
 
-#Readonly::Scalar my $GET_PID_SQL =>
-#  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
+Readonly::Scalar my $GET_PID_SQL =>
+  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
 Readonly::Scalar my $TRUNCATE_SQL => 'TRUNCATE TABLE antcheck';
 
 my @not_sql = (
