@@ -12,7 +12,6 @@ use Readonly;
 Readonly::Scalar my $RUBICON1        => 90.00;
 Readonly::Scalar my $RUBICON2        => 95.00;
 Readonly::Scalar my $HUNDRED         => 100.00;
-Readonly::Scalar my $MISSING_PATTERN => -0.5;
 Readonly::Scalar my $EXTRA_PATTERN   => -0.5;
 Readonly::Scalar my $STANDARD_WEIGHT => 1.0;
 Readonly::Scalar my $EMPTY           => q{};
@@ -33,6 +32,7 @@ sub new {
     $r_self->{HITS}             = [];
     $r_self->{FEATS}            = undef;
     $r_self->{HIT_COUNT}        = 0;
+    $r_self->{NUM_ACTUAL_VARS}  = 0;
 
     my $r_array = $r_self->{NOTS};
     push @{$r_array}, $pid;
@@ -48,7 +48,13 @@ sub process {
     $r_self->{DBASE}->get_nots( $r_array, $r_self->{PID} );
     $r_self->get_text_nots();
     $r_self->get_patterns();
-    $r_self->get_potential_hits();
+
+    # TODO How to find anticipations of problems with only dualled variations? The following test ensures
+    # that they are not tested.
+
+    if ( $r_self->{NUM_ACTUAL_VARS} > 0 ) {
+        $r_self->get_potential_hits();
+    }
 
     return;
 }
@@ -93,33 +99,70 @@ sub compare_problems {
     my $total_value   = 0.0;
     my $compare_value = 0.0;
     my $pc;
+    my $extras;
     my $r_other = Problem->new( $r_self->{DBASE}, $other_pid );
 
     $r_other->get_patterns();
-    my $r_other_patterns = $r_other->{ACTUAL_PATTERNS};
 
-    # First calculate total weight for our patterns and convert pieces.
     while ( ( my $key, my $r_array ) = each %{ $r_self->{ACTUAL_PATTERNS} } ) {
         foreach my $r_hash ( @{$r_array} ) {
             $total_value += $STANDARD_WEIGHT;
+
+            if ( $r_other->is_pattern_matched($key) == 1 ) {
+                $compare_value += $STANDARD_WEIGHT;
+            }
         }
     }
 
-    # Now compare our patterns to the other patterns.
-    while ( ( my $key, my $r_array ) = each %{ $r_self->{ACTUAL_PATTERNS} } ) {
+    $extras = $r_other->get_extras_count();
 
-        if ( exists $r_other_patterns->{$key} ) {
-        }
+    $compare_value += ( $extras * $EXTRA_PATTERN );
 
-        #foreach my $r_hash ( @{$r_array} ) {
-        #$total_value += $STANDARD_WEIGHT;
-        #}
+    $pc = ( $compare_value * $HUNDRED ) / $total_value;
+
+    if ( $pc >= $RUBICON2 ) {
+        $r_self->{DBASE}->insert_hit( $r_self->{PID}, $other_pid, $pc );
+        ( $r_self->{HIT_COUNT} )++;
     }
-
-    #$r_self->{DBASE}->insert_hit( $r_self->{PID}, $other_pid, $pc );
-    #( $r_self->{HIT_COUNT} )++;
 
     return;
+}
+
+sub get_extras_count() {
+    my $r_self = shift;
+    my $extras = 0;
+
+    while ( ( my $key, my $r_array ) = each %{ $r_self->{ACTUAL_PATTERNS} } ) {
+        foreach my $r_hash ( @{$r_array} ) {
+            if ( $r_hash->{MATCHED} == 0 ) {
+                $extras++;
+            }
+        }
+    }
+
+    return $extras;
+}
+
+sub is_pattern_matched {
+    my ( $r_self, $patt ) = @_;
+    my $rc = 0;
+
+    my $r_patts = $r_self->{ACTUAL_PATTERNS};
+
+    if ( exists $r_patts->{$patt} ) {
+        my $r_array = $r_patts->{$patt};
+
+        foreach my $r_hash ( @{$r_array} ) {
+
+            if ( $r_hash->{MATCHED} == 0 ) {
+                $r_hash->{MATCHED} = 1;
+                $rc = 1;
+                last;
+            }
+        }
+    }
+
+    return $rc;
 }
 
 sub get_text_nots {
@@ -152,6 +195,7 @@ sub get_patterns {
     my $raw_text;
     my $r_array;
     my $r_dict;
+    my $actual_vars = 0;
     $r_self->{FEATS} = $r_self->{DBASE}->get_features( $r_self->{PID} );
 
     my $doc     = XML::LibXML->load_xml( string => $r_self->{FEATS} );
@@ -190,6 +234,7 @@ sub get_patterns {
     }
 
     foreach my $var (@vars) {
+        $actual_vars++;
         $text     = $var->firstChild()->textContent();
         $raw_text = $text;
         $text =~ s/\(\w\)/\(\)/gsmx;
@@ -204,12 +249,13 @@ sub get_patterns {
         }
         else {
             $r_array = [];
-            $r_dict  = {};
             push @{$r_array}, $r_dict;
 
             $r_hash->{$text} = $r_array;
         }
     }
+
+    $r_self->{NUM_ACTUAL_VARS} = $actual_vars;
 
     return;
 }
@@ -219,18 +265,19 @@ sub get_patterns {
 sub get_pieces {
     my $patt = shift;
     my $rstr = $EMPTY;
-    my $len  = length $patt;
-    my $ch;
-    my $sch;
 
-    foreach my $i ( 0 .. ( $len - 3 ) ) {
-        $ch = substr $patt, $i, 1;
+    #my $len  = length $patt;
+    #my $ch;
+    #my $sch;
 
-        if ( $ch eq '(' ) {
-            $sch = substr $patt, $i + 1, 1;
-            ( $sch =~ m/\w/smx ) && ( $rstr .= $sch );
-        }
-    }
+    #foreach my $i ( 0 .. ( $len - 3 ) ) {
+    #$ch = substr $patt, $i, 1;
+
+    #if ( $ch eq '(' ) {
+    #$sch = substr $patt, $i + 1, 1;
+    #( $sch =~ m/\w/smx ) && ( $rstr .= $sch );
+    #}
+    #}
 
     return $rstr;
 }
