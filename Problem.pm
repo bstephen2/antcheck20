@@ -44,8 +44,15 @@ sub new {
 sub process {
     my $r_self  = shift;
     my $r_array = $r_self->{NOTS};
+    my $eid;
 
     $r_self->{DBASE}->get_nots( $r_array, $r_self->{PID} );
+    $eid = $r_self->{DBASE}->get_eid( $r_self->{PID} );
+
+    if ( ( defined $eid ) && ( $eid != 0 ) ) {
+        push @{$r_array}, $eid;
+    }
+
     $r_self->get_text_nots();
     $r_self->get_patterns();
 

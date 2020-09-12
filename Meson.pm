@@ -19,11 +19,13 @@ Readonly::Scalar my $GET_PIDS_WITH_FID =>
   'SELECT pid from meson_keyclass WHERE (fid = %d) AND (pid NOT IN %s )';
 Readonly::Scalar my $INSERT_HIT => 'INSERT INTO antcheck SET pid = %d, aid = %d, score = %f';
 
-#Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
+Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
 
-Readonly::Scalar my $GET_PID_SQL =>
-  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
+#Readonly::Scalar my $GET_PID_SQL =>
+#  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
 Readonly::Scalar my $TRUNCATE_SQL => 'TRUNCATE TABLE antcheck';
+
+Readonly::Scalar my $EID_SQL => 'SELECT eid FROM problem WHERE pid = %d';
 
 my @not_sql = (
     'SELECT caid FROM cants WHERE pid = %d',
@@ -57,6 +59,23 @@ sub new {
 
     bless $r_self, $class;
     return $r_self;
+}
+
+sub get_eid {
+    my ( $r_self, $pid ) = @_;
+    my $sth;
+    my $r_row;
+    my $eid;
+
+    my $sql = sprintf $EID_SQL, $pid;
+
+    $sth = $r_self->{DBH}->prepare($sql);
+    $sth->execute();
+    $r_row = $sth->fetchrow_arrayref;
+    $eid   = $r_row->[0];
+    $sth->finish();
+
+    return $eid;
 }
 
 sub insert_hit {
