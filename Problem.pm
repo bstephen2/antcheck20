@@ -15,6 +15,8 @@ Readonly::Scalar my $HUNDRED         => 100.00;
 Readonly::Scalar my $EXTRA_PATTERN   => -0.5;
 Readonly::Scalar my $STANDARD_WEIGHT => 1.0;
 Readonly::Scalar my $EMPTY           => q{};
+Readonly::Scalar my $WHITES          => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+Readonly::Scalar my $BLACKS          => 'abcdefghijklmnopqrstuvwxyz';
 
 our $VERSION = 2.0;
 
@@ -33,6 +35,9 @@ sub new {
     $r_self->{FEATS}            = undef;
     $r_self->{HIT_COUNT}        = 0;
     $r_self->{NUM_ACTUAL_VARS}  = 0;
+    $r_self->{NEXT_WHITE}       = 0;
+    $r_self->{NEXT_BLACK}       = 0;
+    $r_self->{TRANS}            = {};
 
     my $r_array = $r_self->{NOTS};
     push @{$r_array}, $pid;
@@ -114,8 +119,9 @@ sub compare_problems {
     while ( ( my $key, my $r_array ) = each %{ $r_self->{ACTUAL_PATTERNS} } ) {
         foreach my $r_hash ( @{$r_array} ) {
             $total_value += $STANDARD_WEIGHT;
+            $r_hash->{CONVERTED} = $r_self->translate_pieces( $r_hash->{PIECES} );
 
-            if ( $r_other->is_pattern_matched($key) == 1 ) {
+            if ( $r_other->is_pattern_matched( $key, $r_hash->{CONVERTED} ) == 1 ) {
                 $compare_value += $STANDARD_WEIGHT;
             }
         }
@@ -151,7 +157,7 @@ sub get_extras_count() {
 }
 
 sub is_pattern_matched {
-    my ( $r_self, $patt ) = @_;
+    my ( $r_self, $patt, $converted ) = @_;
     my $rc = 0;
 
     my $r_patts = $r_self->{ACTUAL_PATTERNS};
@@ -162,9 +168,13 @@ sub is_pattern_matched {
         foreach my $r_hash ( @{$r_array} ) {
 
             if ( $r_hash->{MATCHED} == 0 ) {
-                $r_hash->{MATCHED} = 1;
-                $rc = 1;
-                last;
+                $r_hash->{CONVERTED} = $r_self->translate_pieces( $r_hash->{PIECES} );
+
+                if ( $converted eq $r_hash->{CONVERTED} ) {
+                    $r_hash->{MATCHED} = 1;
+                    $rc = 1;
+                    last;
+                }
             }
         }
     }
@@ -193,6 +203,7 @@ sub get_text_nots {
 
     return;
 }
+
 ## no critic (ProhibitEscapedMetacharacters)
 
 sub get_patterns {
@@ -218,7 +229,7 @@ sub get_patterns {
     $text =~ s/\(\w\)/\(\)/gsmx;
     $r_array             = [];
     $r_dict              = {};
-    $r_dict->{PIECES}    = get_pieces($raw_text);
+    $r_dict->{PIECES}    = $r_self->get_pieces($raw_text);
     $r_dict->{MATCHED}   = 0;
     $r_dict->{CONVERTED} = 0;
     push @{$r_array}, $r_dict;
@@ -232,7 +243,7 @@ sub get_patterns {
         $text =~ s/\(\w\)/\(\)/gsmx;
         $r_array             = [];
         $r_dict              = {};
-        $r_dict->{PIECES}    = get_pieces($raw_text);
+        $r_dict->{PIECES}    = $r_self->get_pieces($raw_text);
         $r_dict->{MATCHED}   = 0;
         $r_dict->{CONVERTED} = 0;
         push @{$r_array}, $r_dict;
@@ -246,7 +257,7 @@ sub get_patterns {
         $raw_text = $text;
         $text =~ s/\(\w\)/\(\)/gsmx;
         $r_dict              = {};
-        $r_dict->{PIECES}    = get_pieces($raw_text);
+        $r_dict->{PIECES}    = $r_self->get_pieces($raw_text);
         $r_dict->{MATCHED}   = 0;
         $r_dict->{CONVERTED} = 0;
 
@@ -269,22 +280,56 @@ sub get_patterns {
 
 ## use critic
 
+## no critic (ProhibitEscapedMetacharacters)
+
 sub get_pieces {
-    my $patt = shift;
+    my ( $r_self, $patt ) = @_;
     my $rstr = $EMPTY;
 
-    #my $len  = length $patt;
-    #my $ch;
-    #my $sch;
+    #$text =~ s/\(\w\)/\(\)/gsmx;
 
-    #foreach my $i ( 0 .. ( $len - 3 ) ) {
-    #$ch = substr $patt, $i, 1;
+    while ( $patt =~ m/\((\w)\)/gsmx ) {
+        $rstr .= $1;
+    }
 
-    #if ( $ch eq '(' ) {
-    #$sch = substr $patt, $i + 1, 1;
-    #( $sch =~ m/\w/smx ) && ( $rstr .= $sch );
-    #}
-    #}
+    return $rstr;
+}
+
+## use critic
+
+sub translate_pieces {
+    my ( $r_self, $pieces ) = @_;
+    my $rstr   = $EMPTY;
+    my $r_hash = $r_self->{TRANS};
+    my $len    = length $pieces;
+
+    foreach my $i ( 0 .. ( $len - 1 ) ) {
+        my $ch = substr $pieces, $i, 1;
+
+        if ( exists( $r_hash->{$ch} ) ) {
+            $rstr .= $r_hash->{$ch};
+        }
+        else {
+            my $tch;
+            my $j;
+
+            if ( $ch =~ m/\p{Uppercase}/sxm ) {
+                $j = $r_self->{NEXT_WHITE};
+                $tch = substr $WHITES, $j, 1;
+                $j++;
+                $r_self->{NEXT_WHITE} = $j;
+            }
+            else {
+                $j = $r_self->{NEXT_BLACK};
+                $tch = substr $BLACKS, $j, 1;
+                $j++;
+                $r_self->{NEXT_BLACK} = $j;
+            }
+
+            $rstr .= $tch;
+            $r_hash->{$ch} = $tch;
+        }
+    }
 
     return $rstr;
 }
