@@ -9,20 +9,20 @@ use strict;
 use Readonly;
 use DBI;
 
-Readonly::Scalar my $SERVER           => 'localhost';
-Readonly::Scalar my $DB               => 'meson';
-Readonly::Scalar my $USER             => 'bstephen';
-Readonly::Scalar my $PASSWORD         => 'rice37';
-Readonly::Scalar my $GET_FEATS_SQL    => 'SELECT UNCOMPRESS(class) FROM classol WHERE pid = %d';
+Readonly::Scalar my $SERVER        => 'localhost';
+Readonly::Scalar my $DB            => 'meson';
+Readonly::Scalar my $USER          => 'bstephen';
+Readonly::Scalar my $PASSWORD      => 'rice37';
+Readonly::Scalar my $GET_FEATS_SQL => 'SELECT UNCOMPRESS(sol), UNCOMPRESS(class) FROM classol WHERE pid = %d';
 Readonly::Scalar my $GET_FEAT_FID_SQL => 'SELECT fid FROM meson_feature WHERE text = \'%s\'';
 Readonly::Scalar my $GET_PIDS_WITH_FID =>
   'SELECT pid from meson_keyclass WHERE (fid = %d) AND (pid NOT IN %s )';
 Readonly::Scalar my $INSERT_HIT => 'INSERT INTO antcheck SET pid = %d, aid = %d, score = %f';
 
-#Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
+Readonly::Scalar my $GET_PID_SQL => 'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\')';
 
-Readonly::Scalar my $GET_PID_SQL =>
-  'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
+#Readonly::Scalar my $GET_PID_SQL =>
+#'SELECT pid FROM problem WHERE (stip = \'#2\') AND (sound = \'SOUND\') AND (gbr REGEXP \'^3\')';
 Readonly::Scalar my $TRUNCATE_SQL => 'TRUNCATE TABLE antcheck';
 
 Readonly::Scalar my $EID_SQL => 'SELECT eid FROM problem WHERE pid = %d';
@@ -156,16 +156,18 @@ sub get_features {
     my ( $r_self, $pid ) = @_;
     my $r_row;
     my $sth;
-    my $rc;
+    my $rc_sol;
+    my $rc_class;
 
     my $sql = sprintf $GET_FEATS_SQL, $pid;
     $sth = $r_self->{DBH}->prepare($sql);
     $sth->execute();
-    $r_row = $sth->fetchrow_arrayref;
-    $rc    = $r_row->[0];
+    $r_row    = $sth->fetchrow_arrayref;
+    $rc_sol   = $r_row->[0];
+    $rc_class = $r_row->[1];
     $sth->finish();
 
-    return $rc;
+    return ( $rc_sol, $rc_class );
 }
 
 sub get_potential_pids {

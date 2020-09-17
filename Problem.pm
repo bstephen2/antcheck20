@@ -12,7 +12,7 @@ use Readonly;
 Readonly::Scalar my $RUBICON1        => 90.00;
 Readonly::Scalar my $RUBICON2        => 95.00;
 Readonly::Scalar my $HUNDRED         => 100.00;
-Readonly::Scalar my $EXTRA_PATTERN   => -0.5;
+Readonly::Scalar my $EXTRA_PATTERN   => 0.75;
 Readonly::Scalar my $STANDARD_WEIGHT => 1.0;
 Readonly::Scalar my $EMPTY           => q{};
 Readonly::Scalar my $WHITES          => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -33,11 +33,13 @@ sub new {
     $r_self->{NOTSTEXT}         = undef;
     $r_self->{HITS}             = [];
     $r_self->{FEATS}            = undef;
+    $r_self->{SOL}              = undef;
     $r_self->{HIT_COUNT}        = 0;
     $r_self->{NUM_ACTUAL_VARS}  = 0;
     $r_self->{NEXT_WHITE}       = 0;
     $r_self->{NEXT_BLACK}       = 0;
     $r_self->{TRANS}            = {};
+    $r_self->{NUM_VARS}         = undef;
 
     my $r_array = $r_self->{NOTS};
     push @{$r_array}, $pid;
@@ -62,7 +64,7 @@ sub process {
     $r_self->get_patterns();
 
     # TODO How to find anticipations of problems with only dualled variations? The following test ensures
-    # that they are not tested.
+    # that we ignore them.
 
     if ( $r_self->{NUM_ACTUAL_VARS} > 0 ) {
         $r_self->get_potential_hits();
@@ -111,6 +113,8 @@ sub compare_problems {
     my $total_value   = 0.0;
     my $compare_value = 0.0;
     my $pc;
+    my $my_vars;
+    my $his_vars;
     my $extras;
     my $r_other = Problem->new( $r_self->{DBASE}, $other_pid );
 
@@ -128,17 +132,32 @@ sub compare_problems {
     }
 
     $extras = $r_other->get_extras_count();
+    $compare_value -= ( $extras * $EXTRA_PATTERN );
 
-    $compare_value += ( $extras * $EXTRA_PATTERN );
+    $my_vars  = $r_self->{NUM_VARS};
+    $his_vars = $r_other->get_num_vars();
 
-    $pc = ( $compare_value * $HUNDRED ) / $total_value;
+    if ( $my_vars < $his_vars ) {
+        my $missing = $his_vars - $my_vars;
+        $compare_value -= ( $missing * $EXTRA_PATTERN );
+    }
 
-    if ( $pc >= $RUBICON2 ) {
-        $r_self->{DBASE}->insert_hit( $r_self->{PID}, $other_pid, $pc );
-        ( $r_self->{HIT_COUNT} )++;
+    if ( $compare_value > 0.0 ) {
+        $pc = ( $compare_value * $HUNDRED ) / $total_value;
+
+        if ( $pc >= $RUBICON2 ) {
+            $r_self->{DBASE}->insert_hit( $r_self->{PID}, $other_pid, $pc );
+            ( $r_self->{HIT_COUNT} )++;
+        }
     }
 
     return;
+}
+
+sub get_num_vars {
+    my $r_self = shift;
+
+    return $r_self->{NUM_VARS};
 }
 
 sub get_extras_count() {
@@ -214,7 +233,7 @@ sub get_patterns {
     my $r_array;
     my $r_dict;
     my $actual_vars = 0;
-    $r_self->{FEATS} = $r_self->{DBASE}->get_features( $r_self->{PID} );
+    ( $r_self->{SOL}, $r_self->{FEATS} ) = $r_self->{DBASE}->get_features( $r_self->{PID} );
 
     my $doc     = XML::LibXML->load_xml( string => $r_self->{FEATS} );
     my $root    = $doc->getDocumentElement();
@@ -274,6 +293,14 @@ sub get_patterns {
     }
 
     $r_self->{NUM_ACTUAL_VARS} = $actual_vars;
+
+    $doc = XML::LibXML->load_xml( string => $r_self->{SOL} );
+    $root = $doc->getDocumentElement();
+    my @vkeys = $root->getChildrenByTagName('Keys');
+    my @wms   = $vkeys[0]->getChildrenByTagName('wm');
+    my @bms   = $wms[0]->getChildrenByTagName('bm');
+
+    $r_self->{NUM_VARS} = scalar @bms;
 
     return;
 }
